@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Our Work 流程图绘制器</title>
+  <style>
+    :root { color-scheme: light; --ink:#183044; --muted:#657787; --line:#d5e0e7; --blue:#187ba4; --pale:#eef6fa; --paper:#fff; --bg:#eef2f5; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--bg); font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif; }
+    button,input,textarea,select { font:inherit; }
+    button { cursor:pointer; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); padding:8px 11px; }
+    button:hover { border-color:#8bbbd0; background:#f5fafc; }
+    button:disabled { cursor:not-allowed; opacity:.45; }
+    button.primary { background:var(--blue); color:white; border-color:var(--blue); }
+    button.primary:hover { background:#126785; }
+    button.active { color:var(--blue); border-color:var(--blue); background:#e7f5fa; }
+    header { height:64px; display:flex; align-items:center; gap:10px; padding:0 17px; background:#fff; border-bottom:1px solid var(--line); }
+    .brand { min-width:226px; line-height:1.1; }
+    .brand strong { display:block; font-size:17px; }
+    .brand small { color:var(--muted); }
+    header .project-title { width:190px; flex:0 0 190px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; }
+    .spacer { flex:1; }
+    .toolbar { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+    .layout { display:grid; grid-template-columns:244px minmax(540px,1fr) 270px; min-height:calc(100vh - 64px); }
+    aside { background:#fff; padding:17px; }
+    aside.left { border-right:1px solid var(--line); }
+    aside.right { border-left:1px solid var(--line); }
+    h2 { margin:0 0 12px; font-size:14px; letter-spacing:.04em; }
+    h3 { margin:20px 0 9px; font-size:12px; text-transform:uppercase; color:var(--muted); letter-spacing:.08em; }
+    .stack { display:grid; gap:8px; }
+    .stack button { text-align:left; }
+    .field { margin-bottom:13px; }
+    label { display:block; margin-bottom:5px; font-weight:600; font-size:12px; color:#425767; }
+    input[type="text"],input[type="number"],textarea,select { width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 9px; color:var(--ink); background:#fff; }
+    textarea { resize:vertical; min-height:86px; }
+    input[type="color"] { width:100%; height:37px; padding:2px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .hint { color:var(--muted); font-size:12px; line-height:1.5; }
+    .steps { margin:0; padding-left:18px; color:#52697a; font-size:12px; line-height:1.65; }
+    main { display:flex; flex-direction:column; min-width:0; }
+    .canvas-top { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:13px 17px; }
+    .canvas-top .status { color:#365c70; }
+    .canvas-shell { flex:1; overflow:auto; padding:8px 16px 25px; }
+    .canvas-card { width:100%; min-width:820px; margin:0 auto; padding:14px; background:#fff; border:1px solid var(--line); border-radius:13px; box-shadow:0 12px 30px rgba(29,65,83,.08); }
+    svg#drawing { display:block; width:100%; aspect-ratio:1200/620; border:1px solid #e3e9ed; background:white; touch-action:none; user-select:none; }
+    .footnote { margin:12px 3px 0; color:var(--muted); font-size:12px; }
+    .inspector-empty { padding:12px 0; color:var(--muted); }
+    .inspector-actions { display:flex; gap:7px; }
+    .inspector-actions button { flex:1; }
+    .divider { border:0; border-top:1px solid var(--line); margin:19px 0; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    @media(max-width:1100px) { .layout { grid-template-columns:200px minmax(440px,1fr); } aside.right { grid-column:1 / -1; border-left:0; border-top:1px solid var(--line); } .brand { min-width:170px; } }
+    @media(max-width:760px) { header { height:auto; padding:12px; flex-wrap:wrap; } .layout { display:block; } aside.left,aside.right { border:0; border-bottom:1px solid var(--line); } .canvas-shell { padding:8px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><strong>Our Work 绘图器</strong><small>离线流程图 · 学术论文半页版式</small></div>
+    <input id="projectTitle" class="project-title" type="text" aria-label="项目名称" value="Our Work">
+    <div class="toolbar">
+      <button id="undoBtn" title="⌘/Ctrl + Z">撤销</button>
+      <button id="redoBtn" title="⌘/Ctrl + Shift + Z">重做</button>
+      <button id="exampleBtn">载入示例</button>
+      <button id="blankBtn">清空画布</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="toolbar">
+      <button id="saveJsonBtn">保存工程</button>
+      <button id="loadJsonBtn">打开工程</button>
+      <button id="exportSvgBtn">导出 SVG</button>
+      <button id="exportPngBtn" class="primary">导出 PNG</button>
+    </div>
+    <input class="sr-only" id="fileInput" type="file" accept=".json,application/json">
+  </header>
+  <div class="layout">
+    <aside class="left">
+      <h2>绘制工具</h2>
+      <div class="stack">
+        <button data-add="rect">＋ 添加步骤框</button>
+        <button data-add="round">＋ 添加圆角框</button>
+        <button data-add="diamond">＋ 添加判断框</button>
+        <button data-add="ellipse">＋ 添加椭圆</button>
+        <button data-add="heading">＋ 添加阶段标题</button>
+        <button data-add="frame">▧ 添加虚线分组框</button>
+        <button data-add="formula">∑ 插入 LaTeX 公式</button>
+        <button id="connectBtn">↗ 连接两个节点</button>
+      </div>
+      <h3>排版模板</h3>
+      <div class="stack">
+        <button id="threeStageBtn">三阶段空白模板</button>
+        <button id="fitBtn">恢复画布视图</button>
+      </div>
+      <h3>自定义配色</h3>
+      <div class="field"><label for="palettePreset">配色方案</label><select id="palettePreset"><option value="academic">学术蓝绿</option><option value="mono">黑白灰</option><option value="warm">暖色系</option><option value="custom">自定义</option></select></div>
+      <div class="row">
+        <div class="field"><label for="paletteStage1">阶段 1</label><input id="paletteStage1" type="color"></div>
+        <div class="field"><label for="paletteStage2">阶段 2</label><input id="paletteStage2" type="color"></div>
+        <div class="field"><label for="paletteStage3">阶段 3</label><input id="paletteStage3" type="color"></div>
+        <div class="field"><label for="paletteLine">线条</label><input id="paletteLine" type="color"></div>
+        <div class="field"><label for="paletteText">文字</label><input id="paletteText" type="color"></div>
+        <div class="field"><label for="paletteBackground">背景</label><input id="paletteBackground" type="color"></div>
+      </div>
+      <button id="applyPaletteBtn">应用到整张图</button>
+      <p class="hint">阶段色自动生成浅色框体；整图应用会覆盖现有框体配色，之后仍可单独调色。</p>
+      <hr class="divider">
+      <h2>怎么用</h2>
+      <ol class="steps">
+        <li>拖动框调整位置；拖右下角圆点调整大小。</li>
+        <li>点选框，在右侧修改文字与颜色。</li>
+        <li>虚线框可圈出一个阶段；拖动框内空白处定位。</li>
+        <li>公式输入 LaTeX 数学式，如 <code>W=\\frac{kFL}{H}</code>。</li>
+        <li>点“连接两个节点”，依次点起点和终点。</li>
+        <li>导出 PNG 直接插入 LaTeX；SVG 保留矢量清晰度。</li>
+      </ol>
+      <p class="hint">工程自动保存在此浏览器中；“保存工程”可另存 JSON，方便以后继续编辑。</p>
+    </aside>
+    <main>
+      <div class="canvas-top"><strong>画布 · 1200 × 620</strong><span id="status" class="status">点击节点开始编辑</span></div>
+      <div class="canvas-shell">
+        <div class="canvas-card">
+          <svg id="drawing" viewBox="0 0 1200 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="可编辑流程图画布"></svg>
+          <p class="footnote">建议在 LaTeX 中以 <code>width=\linewidth</code> 插入。导出的图片不含编辑网格和选中边框。</p>
+        </div>
+      </div>
+    </main>
+    <aside class="right">
+      <h2>属性</h2>
+      <div id="inspector" class="inspector-empty">选中节点或连线后，在这里编辑。</div>
+      <hr class="divider">
+      <h2>LaTeX 插入</h2>
+      <div class="field"><label for="captionInput">图注</label><input id="captionInput" type="text" value="Overview of our work"></div>
+      <button id="latexBtn">复制插图代码</button>
+      <p class="hint">把导出的 PNG 放进论文的 <code>figures/</code> 文件夹，再粘贴代码。图中的文字也可以直接在本工具内修改。</p>
+    </aside>
+  </div>
+  <script>window.MathJax={svg:{fontCache:'none'},startup:{typeset:false},options:{enableMenu:false}};</script>
+  <script src="mathjax-tex-svg-full.js"></script>
+  <script>
+    'use strict';
+    const W=1200, H=620, NS='http://www.w3.org/2000/svg', STORAGE='our-work-flowchart-v1';
+    const svg=document.getElementById('drawing'), inspector=document.getElementById('inspector'), statusEl=document.getElementById('status');
+    const projectTitle=document.getElementById('projectTitle'), captionInput=document.getElementById('captionInput');
+    const colors={ blue:'#dceef6', teal:'#dff3ed', amber:'#fff0d7', white:'#ffffff', ink:'#183044', line:'#56859b' };
+    const PALETTES={
+      academic:{stage1:'#2585ae',stage2:'#249783',stage3:'#d28b39',line:'#668b9b',text:'#183044',background:'#ffffff'},
+      mono:{stage1:'#5e6b75',stage2:'#7c878e',stage3:'#9a958a',line:'#59636b',text:'#1d252b',background:'#ffffff'},
+      warm:{stage1:'#ae7255',stage2:'#aa9560',stage3:'#9d7286',line:'#8b786f',text:'#382b2b',background:'#fffdf9'}
+    };
+    let project, selected=null, mode='select', connectFrom=null, drag=null, history=[], historyIndex=-1;
+    const formulaCache=new Map();
+
+    function themeOf(){return {...PALETTES.academic,...(project?.theme||{})};}
+    function blend(a,b,ratio){
+      const aa=safeHex(a,'#ffffff').slice(1),bb=safeHex(b,'#ffffff').slice(1);
+      return '#'+[0,2,4].map(i=>Math.round(parseInt(aa.slice(i,i+2),16)*(1-ratio)+parseInt(bb.slice(i,i+2),16)*ratio).toString(16).padStart(2,'0')).join('');
+    }
+
+    function id(prefix){ return prefix+'-'+Math.random().toString(36).slice(2,10); }
+    function node(x,y,w,h,text,fill=colors.white,type='round',stroke=colors.line,fontSize=22){
+      return {id:id('n'),x,y,w,h,text,fill,type,stroke,fontSize};
+    }
+    function edge(from,to,label=''){ return {id:id('e'),from,to,label,color:'#668b9b'}; }
+    function example(){
+      const h1=node(58,47,278,50,'01  Field Survey','#cce6f2','heading','#8bbbd0',21);
+      const h2=node(460,47,278,50,'02  Wear Modelling','#d5ede8','heading','#92c7bb',21);
+      const h3=node(862,47,278,50,'03  Inference & Checks','#ffead1','heading','#dfbb87',21);
+      const a=node(66,150,262,102,'Tread profiles\nMaterial conditions',colors.blue);
+      const b=node(66,351,262,102,'Historical records\nSurvey constraints',colors.blue);
+      const c=node(468,150,262,102,'Spatial wear model\nFoot traffic + exposure',colors.teal);
+      const d=node(468,351,262,102,'Estimate parameters\nCompare wear profiles',colors.teal);
+      const e=node(870,136,262,88,'Traffic frequency',colors.amber);
+      const f=node(870,268,262,88,'Direction + formation',colors.amber);
+      const g=node(870,400,262,88,'Age, repairs + origin',colors.amber);
+      const u=node(468,521,262,57,'Sensitivity + uncertainty','#edf1f5','round','#aabac6',20);
+      return {version:1,title:'Our Work',caption:'Overview of our work',theme:clone(PALETTES.academic),nodes:[h1,h2,h3,a,b,c,d,e,f,g,u],edges:[
+        edge(a.id,c.id),edge(b.id,d.id),edge(c.id,d.id),edge(d.id,e.id),edge(d.id,f.id),edge(d.id,g.id),edge(d.id,u.id)
+      ]};
+    }
+    function threeStage(){
+      const h1=node(55,65,290,54,'01  Input',colors.blue,'heading','#8bbbd0',22);
+      const h2=node(455,65,290,54,'02  Model',colors.teal,'heading','#92c7bb',22);
+      const h3=node(855,65,290,54,'03  Result',colors.amber,'heading','#dfbb87',22);
+      const a=node(70,230,260,120,'Data / constraints',colors.blue);
+      const b=node(470,230,260,120,'Method / model',colors.teal);
+      const c=node(870,230,260,120,'Outputs / decisions',colors.amber);
+      return {version:1,title:'Three-stage workflow',caption:'Overview of our work',theme:clone(PALETTES.academic),nodes:[h1,h2,h3,a,b,c],edges:[edge(a.id,b.id),edge(b.id,c.id)]};
+    }
+    function blank(){ return {version:1,title:'Untitled flowchart',caption:'Overview of our work',theme:clone(PALETTES.academic),nodes:[],edges:[]}; }
+    function clone(v){ return JSON.parse(JSON.stringify(v)); }
+    function remember(){
+      const value=JSON.stringify(project);
+      if(history[historyIndex]!==value){ history=history.slice(0,historyIndex+1); history.push(value); historyIndex=history.length-1; }
+      try{localStorage.setItem(STORAGE,value);}catch(_e){}
+      updateHistoryButtons();
+    }
+    function updateHistoryButtons(){document.getElementById('undoBtn').disabled=historyIndex<=0;document.getElementById('redoBtn').disabled=historyIndex>=history.length-1;}
+    function restore(value){project=JSON.parse(value);selected=null;connectFrom=null;mode='select';syncMeta();render();updateInspector();updateHistoryButtons();project.nodes.filter(n=>n.type==='formula').forEach(n=>typesetFormula(n));}
+    function syncMeta(){projectTitle.value=project.title||'Untitled flowchart';captionInput.value=project.caption||'Overview of our work';syncPalette();}
+    function syncPalette(){
+      const t=themeOf();
+      for(const key of Object.keys(PALETTES.academic))document.getElementById('palette'+key[0].toUpperCase()+key.slice(1)).value=t[key];
+      const preset=Object.keys(PALETTES).find(name=>Object.keys(t).every(key=>t[key]===PALETTES[name][key]));
+      document.getElementById('palettePreset').value=preset||'custom';
+    }
+    function applyPalette(){
+      const t={};
+      for(const key of Object.keys(PALETTES.academic))t[key]=document.getElementById('palette'+key[0].toUpperCase()+key.slice(1)).value;
+      project.theme=t;
+      for(const n of project.nodes){
+        if(n.type==='frame'){n.stroke=t.line;continue;}
+        if(n.type==='formula'){n.stroke=t.text;continue;}
+        if(!n.paletteRole)n.paletteRole=n.fill?.toLowerCase()==='#edf1f5'?'neutral':['stage1','stage2','stage3'][Math.min(2,Math.floor((n.x+n.w/2)/(W/3)))];
+        const base=n.paletteRole==='neutral'?t.line:t[n.paletteRole]||t.stage2;
+        n.fill=blend(base,'#ffffff',n.type==='heading'?.73:.84);
+        n.stroke=blend(base,'#ffffff',n.type==='heading'?.28:.18);
+      }
+      for(const e of project.edges)e.color=t.line;
+      syncPalette();remember();render();updateInspector();setStatus('整图配色已更新');
+    }
+    function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function safeHex(v,fallback){return /^#[0-9a-f]{6}$/i.test(v||'')?v:fallback;}
+    const measure=document.createElement('canvas').getContext('2d');
+    function wrapped(text,maxWidth,size){
+      measure.font=`600 ${size}px Arial, sans-serif`;
+      const result=[];
+      for(const paragraph of String(text||'').split('\n')){
+        if(!paragraph){result.push('');continue;}
+        let line='';
+        const pieces=paragraph.match(/\S+\s*|\s+/g)||[paragraph];
+        for(const piece of pieces){
+          if(measure.measureText(line+piece).width<=maxWidth){line+=piece;continue;}
+          if(line.trim()) result.push(line.trim());
+          line='';
+          if(measure.measureText(piece).width<=maxWidth){line=piece.trimStart();continue;}
+          for(const ch of piece){
+            if(measure.measureText(line+ch).width>maxWidth && line){result.push(line.trim());line='';}
+            line+=ch;
+          }
+        }
+        result.push(line.trim());
+      }
+      return result.slice(0,7);
+    }
+    function shape(n){
+      const x=+n.x,y=+n.y,w=+n.w,h=+n.h,fill=safeHex(n.fill,colors.white),stroke=safeHex(n.stroke,colors.line);
+      if(n.type==='formula')return '';
+      if(n.type==='frame') return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-dasharray="12 8"/>`;
+      if(n.type==='diamond') return `<polygon points="${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}" fill="${fill}" stroke="${stroke}" stroke-width="2.3"/>`;
+      if(n.type==='ellipse') return `<ellipse cx="${x+w/2}" cy="${y+h/2}" rx="${w/2}" ry="${h/2}" fill="${fill}" stroke="${stroke}" stroke-width="2.3"/>`;
+      const radius=n.type==='rect'?3:n.type==='heading'?10:18;
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${n.type==='heading'?1.6:2.3}"/>`;
+    }
+    function textSvg(n){
+      const size=Math.max(12,Math.min(42,+n.fontSize||22)), maxWidth=n.w*(n.type==='diamond'?.65:.83);
+      if(n.type==='formula'){
+        const cached=formulaCache.get(n.id);
+        if(cached?.source===n.text&&!cached.error)return `<svg x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" viewBox="${cached.viewBox}" preserveAspectRatio="xMidYMid meet" color="${safeHex(n.stroke,themeOf().text)}">${cached.inner}</svg>`;
+        return `<text x="${n.x+n.w/2}" y="${n.y+n.h/2}" text-anchor="middle" dominant-baseline="middle" fill="${themeOf().text}" font-family="Georgia, serif" font-size="18">${esc(n.text||'Formula')}</text>`;
+      }
+      if(n.type==='frame'){
+        const lines=wrapped(n.text,n.w-44,size).slice(0,3),start=n.y+30;
+        return `<text x="${n.x+22}" y="${start}" fill="${themeOf().text}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="700">${lines.map((v,i)=>`<tspan x="${n.x+22}" y="${start+i*size*1.25}">${esc(v)}</tspan>`).join('')}</text>`;
+      }
+      const lines=wrapped(n.text,maxWidth,size), leading=size*1.25, start=n.y+n.h/2-(lines.length-1)*leading/2;
+      return `<text x="${n.x+n.w/2}" y="${start}" text-anchor="middle" dominant-baseline="middle" fill="${themeOf().text}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${n.type==='heading'?700:600}">${lines.map((v,i)=>`<tspan x="${n.x+n.w/2}" y="${start+i*leading}">${esc(v)}</tspan>`).join('')}</text>`;
+    }
+    async function typesetFormula(n,redraw=true){
+      const source=n.text;
+      try{
+        await MathJax.startup.promise;
+        const container=await MathJax.tex2svgPromise(source,{display:true});
+        const formula=container.querySelector('svg');
+        if(!formula)throw Error('MathJax 未返回 SVG');
+        if(n.text!==source)return true;
+        formulaCache.set(n.id,{source,viewBox:formula.getAttribute('viewBox'),inner:formula.innerHTML});
+        if(redraw)render();
+        return true;
+      }catch(error){
+        formulaCache.set(n.id,{source,error:String(error)});
+        if(redraw){render();setStatus('公式语法有误，请检查 LaTeX 输入');}
+        return false;
+      }
+    }
+    async function ensureFormulas(){
+      const missing=project.nodes.filter(n=>n.type==='formula'&&formulaCache.get(n.id)?.source!==n.text);
+      const results=await Promise.all(missing.map(n=>typesetFormula(n,false)));
+      if(results.includes(false)||project.nodes.some(n=>n.type==='formula'&&formulaCache.get(n.id)?.error))throw Error('请先修正公式的 LaTeX 语法');
+    }
+    function points(a,b){
+      const ac={x:a.x+a.w/2,y:a.y+a.h/2},bc={x:b.x+b.w/2,y:b.y+b.h/2};
+      const dx=bc.x-ac.x,dy=bc.y-ac.y;
+      if(Math.abs(dx)>Math.abs(dy)*.8){const s=Math.sign(dx)||1;return {x1:ac.x+s*a.w/2,y1:ac.y,x2:bc.x-s*b.w/2,y2:bc.y,horizontal:true,sign:s};}
+      const s=Math.sign(dy)||1;return {x1:ac.x,y1:ac.y+s*a.h/2,x2:bc.x,y2:bc.y-s*b.h/2,horizontal:false,sign:s};
+    }
+    function edgePath(e){
+      const a=project.nodes.find(n=>n.id===e.from),b=project.nodes.find(n=>n.id===e.to);
+      if(!a||!b) return '';
+      const p=points(a,b), bend=Math.max(55,Math.min(125,Math.abs((p.horizontal?p.x2-p.x1:p.y2-p.y1))*.45));
+      return p.horizontal?`M ${p.x1} ${p.y1} C ${p.x1+p.sign*bend} ${p.y1}, ${p.x2-p.sign*bend} ${p.y2}, ${p.x2} ${p.y2}`:
+        `M ${p.x1} ${p.y1} C ${p.x1} ${p.y1+p.sign*bend}, ${p.x2} ${p.y2-p.sign*bend}, ${p.x2} ${p.y2}`;
+    }
+    function edgeSvg(e,index,exporting){
+      const d=edgePath(e);if(!d)return '';
+      const a=project.nodes.find(n=>n.id===e.from),b=project.nodes.find(n=>n.id===e.to),p=points(a,b),col=safeHex(e.color,'#668b9b');
+      let label='';
+      if(e.label){const cx=(p.x1+p.x2)/2,cy=(p.y1+p.y2)/2-12,width=Math.min(240,Math.max(55,String(e.label).length*12+22));
+        label=`<rect x="${cx-width/2}" y="${cy-18}" width="${width}" height="26" rx="5" fill="${themeOf().background}"/><text x="${cx}" y="${cy}" text-anchor="middle" fill="${themeOf().text}" font-family="Arial, Helvetica, sans-serif" font-size="17">${esc(e.label)}</text>`;
+      }
+      const hit=exporting?'':`<path data-edge="${esc(e.id)}" d="${d}" fill="none" stroke="transparent" stroke-width="24" pointer-events="stroke"/>`;
+      return `<g>${hit}<path d="${d}" fill="none" stroke="${col}" stroke-width="${selected===e.id&&!exporting?4:2.6}" marker-end="url(#arrow-${index})" pointer-events="none"/>${label}</g>`;
+    }
+    function nodeSvg(n,exporting){
+      const selectedMarkup=selected===n.id&&!exporting?`<rect class="editor-only" x="${n.x-5}" y="${n.y-5}" width="${n.w+10}" height="${n.h+10}" rx="8" fill="none" stroke="#157aa3" stroke-width="2" stroke-dasharray="8 6" pointer-events="none"/><circle class="editor-only" data-resize="${esc(n.id)}" cx="${n.x+n.w+5}" cy="${n.y+n.h+5}" r="10" fill="#157aa3" stroke="white" stroke-width="2"/>`:'';
+      return `<g data-node="${esc(n.id)}" style="cursor:${mode==='connect'?'crosshair':'move'}">${shape(n)}${textSvg(n)}<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" fill="transparent"/>${selectedMarkup}</g>`;
+    }
+    function svgMarkup(exporting=false){
+      const markers=project.edges.map((e,i)=>`<marker id="arrow-${i}" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M 1 1 L 10 6 L 1 11" fill="none" stroke="${safeHex(e.color,themeOf().line)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>`).join('');
+      const defs=`<defs><pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M 25 0 L 0 0 0 25" fill="none" stroke="#edf1f3" stroke-width="1"/></pattern>${markers}</defs>`;
+      const background=`<rect width="${W}" height="${H}" fill="${themeOf().background}"/>${exporting?'':`<rect class="editor-only" width="${W}" height="${H}" fill="url(#grid)"/>`}`;
+      const frames=project.nodes.filter(n=>n.type==='frame').map(n=>nodeSvg(n,exporting)).join('');
+      const edges=project.edges.map((e,i)=>edgeSvg(e,i,exporting)).join('');
+      const nodes=project.nodes.filter(n=>n.type!=='frame').map(n=>nodeSvg(n,exporting)).join('');
+      return `${defs}${background}${frames}${edges}${nodes}`;
+    }
+    function render(){svg.innerHTML=svgMarkup(false);}
+    function setStatus(message){statusEl.textContent=message;}
+    function updateInspector(){
+      const n=project.nodes.find(n=>n.id===selected),e=project.edges.find(e=>e.id===selected);
+      if(n?.type==='formula'){
+        inspector.className='';
+        inspector.innerHTML=`<div class="field"><label for="formulaLatex">LaTeX 数学公式</label><textarea id="formulaLatex" spellcheck="false"></textarea></div>
+          <p class="hint">示例：<code>W=\\frac{kFL}{H}</code>、<code>\\sum_{i=1}^{n}x_i</code>。只输入数学内容，不用添加美元符号。</p>
+          <div class="row"><div class="field"><label for="formulaW">宽度</label><input id="formulaW" type="number" min="80" max="1000"></div><div class="field"><label for="formulaH">高度</label><input id="formulaH" type="number" min="40" max="500"></div></div>
+          <div class="field"><label for="formulaColor">公式颜色</label><input id="formulaColor" type="color"></div>
+          <div class="inspector-actions"><button id="duplicateBtn">复制公式</button><button id="deleteBtn">删除公式</button></div>`;
+        const latex=document.getElementById('formulaLatex');latex.value=n.text;
+        let timer;
+        latex.oninput=()=>{n.text=latex.value;render();clearTimeout(timer);timer=setTimeout(()=>typesetFormula(n),220);};
+        latex.onchange=remember;
+        for(const [input,key,min,max] of [['formulaW','w',80,1000],['formulaH','h',40,500]]){
+          const el=document.getElementById(input);el.value=n[key];el.oninput=()=>{n[key]=clamp(+el.value||min,min,max);render();};el.onchange=remember;
+        }
+        const color=document.getElementById('formulaColor');color.value=safeHex(n.stroke,themeOf().text);color.oninput=()=>{n.stroke=color.value;render();};color.onchange=remember;
+        document.getElementById('duplicateBtn').onclick=()=>{const copy=clone(n);copy.id=id('n');copy.x=Math.min(W-copy.w,n.x+30);copy.y=Math.min(H-copy.h,n.y+30);project.nodes.push(copy);selected=copy.id;remember();render();updateInspector();typesetFormula(copy);};
+        document.getElementById('deleteBtn').onclick=deleteSelected;
+      }else if(n){
+        inspector.className='';
+        inspector.innerHTML=`<div class="field"><label for="nodeText">${n.type==='frame'?'分组标题':'框中文字（回车换行）'}</label><textarea id="nodeText"></textarea></div>
+          <div class="row"><div class="field"><label for="nodeW">宽度</label><input id="nodeW" type="number" min="80" max="1000"></div><div class="field"><label for="nodeH">高度</label><input id="nodeH" type="number" min="40" max="500"></div></div>
+          <div class="row"><div class="field"><label for="nodeFont">字号</label><input id="nodeFont" type="number" min="12" max="42"></div>${n.type==='frame'?'':`<div class="field"><label for="nodeFill">填充色</label><input id="nodeFill" type="color"></div>`}</div>
+          <div class="field"><label for="nodeStroke">边框色</label><input id="nodeStroke" type="color"></div>
+          <div class="inspector-actions"><button id="duplicateBtn">复制节点</button><button id="deleteBtn">删除节点</button></div>`;
+        const bind=(element,key,parse=x=>x)=>{const el=document.getElementById(element);el.value=n[key];el.addEventListener('input',()=>{n[key]=parse(el.value);render();});el.addEventListener('change',remember);};
+        bind('nodeText','text');bind('nodeW','w',v=>Math.max(80,Math.min(1000,+v||80)));bind('nodeH','h',v=>Math.max(40,Math.min(500,+v||40)));
+        bind('nodeFont','fontSize',v=>Math.max(12,Math.min(42,+v||22)));if(n.type!=='frame')bind('nodeFill','fill');bind('nodeStroke','stroke');
+        document.getElementById('duplicateBtn').onclick=()=>{const copy=clone(n);copy.id=id('n');copy.x=Math.min(W-copy.w,n.x+30);copy.y=Math.min(H-copy.h,n.y+30);project.nodes.push(copy);selected=copy.id;remember();render();updateInspector();};
+        document.getElementById('deleteBtn').onclick=deleteSelected;
+      }else if(e){
+        inspector.className='';
+        inspector.innerHTML=`<div class="field"><label for="edgeLabel">连线文字（可留空）</label><input id="edgeLabel" type="text"></div><div class="field"><label for="edgeColor">线条颜色</label><input id="edgeColor" type="color"></div><button id="deleteBtn">删除连线</button>`;
+        const label=document.getElementById('edgeLabel');label.value=e.label||'';label.oninput=()=>{e.label=label.value;render();};label.onchange=remember;
+        const color=document.getElementById('edgeColor');color.value=e.color||'#668b9b';color.oninput=()=>{e.color=color.value;render();};color.onchange=remember;
+        document.getElementById('deleteBtn').onclick=deleteSelected;
+      }else{inspector.className='inspector-empty';inspector.textContent=mode==='connect'?'请先点击连线的起点框，再点击终点框。':'选中节点或连线后，在这里编辑。';}
+    }
+    function deleteSelected(){
+      if(!selected)return;
+      project.nodes=project.nodes.filter(n=>n.id!==selected);
+      project.edges=project.edges.filter(e=>e.id!==selected&&e.from!==selected&&e.to!==selected);
+      selected=null;remember();render();updateInspector();setStatus('已删除');
+    }
+    function svgPoint(evt){const p=svg.createSVGPoint();p.x=evt.clientX;p.y=evt.clientY;const q=p.matrixTransform(svg.getScreenCTM().inverse());return {x:q.x,y:q.y};}
+    function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+    svg.addEventListener('pointerdown',evt=>{
+      const resizeEl=evt.target.closest('[data-resize]');
+      const nodeEl=evt.target.closest('[data-node]');
+      const edgeEl=evt.target.closest('[data-edge]');
+      if(resizeEl&&mode==='select'){
+        const n=project.nodes.find(x=>x.id===resizeEl.dataset.resize);const p=svgPoint(evt);
+        drag={type:'resize',id:n.id,p,w:n.w,h:n.h};evt.preventDefault();return;
+      }
+      if(nodeEl){
+        const n=project.nodes.find(x=>x.id===nodeEl.dataset.node);
+        if(mode==='connect'){
+          if(n.type==='frame'){setStatus('虚线框只用于分组，不能作为连线端点');return;}
+          if(!connectFrom){connectFrom=n.id;selected=n.id;setStatus('已选起点，请点击终点框');}
+          else if(connectFrom!==n.id){if(!project.edges.some(e=>e.from===connectFrom&&e.to===n.id)){const newEdge=edge(connectFrom,n.id);newEdge.color=themeOf().line;project.edges.push(newEdge);}selected=project.edges.at(-1)?.id||null;connectFrom=null;mode='select';document.getElementById('connectBtn').classList.remove('active');remember();setStatus('连线已添加');}
+          render();updateInspector();return;
+        }
+        selected=n.id;const p=svgPoint(evt);drag={type:'move',id:n.id,p,x:n.x,y:n.y};render();updateInspector();evt.preventDefault();return;
+      }
+      if(edgeEl){selected=edgeEl.dataset.edge;render();updateInspector();return;}
+      selected=null;render();updateInspector();
+    });
+    document.addEventListener('pointermove',evt=>{
+      if(!drag)return;
+      const n=project.nodes.find(x=>x.id===drag.id);if(!n)return;
+      const p=svgPoint(evt),dx=p.x-drag.p.x,dy=p.y-drag.p.y;
+      if(drag.type==='move'){n.x=Math.round(clamp(drag.x+dx,0,W-n.w)/5)*5;n.y=Math.round(clamp(drag.y+dy,0,H-n.h)/5)*5;}
+      else{n.w=Math.round(clamp(drag.w+dx,80,W-n.x)/5)*5;n.h=Math.round(clamp(drag.h+dy,40,H-n.y)/5)*5;}
+      render();evt.preventDefault();
+    });
+    document.addEventListener('pointerup',()=>{if(drag){drag=null;remember();updateInspector();}});
+    svg.addEventListener('dblclick',evt=>{const el=evt.target.closest('[data-node]');if(el){selected=el.dataset.node;render();updateInspector();document.getElementById('formulaLatex')?.focus();document.getElementById('nodeText')?.focus();}});
+    function addNode(type){
+      const offset=(project.nodes.length%5)*28,w=type==='frame'?370:type==='formula'?280:type==='heading'?260:type==='diamond'?210:240,h=type==='frame'?380:type==='formula'?82:type==='heading'?54:type==='diamond'?130:95;
+      const t=themeOf(),x=type==='frame'?390:type==='formula'?(project.nodes.length?60:455):120+offset,y=type==='frame'?105:type==='formula'?(project.nodes.length?505:255):140+offset;
+      const role=['stage1','stage2','stage3'][Math.min(2,Math.floor((x+w/2)/(W/3)))],base=t[role];
+      const fill=type==='heading'?blend(base,'#ffffff',.73):blend(base,'#ffffff',.84),stroke=type==='frame'?t.line:type==='formula'?t.text:blend(base,'#ffffff',type==='heading'?.28:.18);
+      const n=node(x,y,w,h,type==='formula'?String.raw`W=\frac{kFL}{H}`:type==='frame'?'Model stage':type==='heading'?'New stage':type==='diamond'?'Decision?':'New step',fill,type,stroke,type==='frame'?20:22);
+      if(!['frame','formula'].includes(type))n.paletteRole=role;
+      project.nodes.push(n);selected=n.id;remember();render();updateInspector();setStatus(type==='formula'?'公式已添加，在右侧输入 LaTeX':'新节点已添加，可拖动定位');
+      if(type==='formula')typesetFormula(n);
+    }
+    document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addNode(b.dataset.add));
+    document.getElementById('connectBtn').onclick=()=>{mode=mode==='connect'?'select':'connect';connectFrom=null;document.getElementById('connectBtn').classList.toggle('active',mode==='connect');setStatus(mode==='connect'?'依次点击起点框和终点框':'已退出连线模式');updateInspector();};
+    function useTemplate(factory){if(project.nodes.length&&!confirm('将当前图替换为模板？请先保存工程。'))return;project=factory();selected=null;mode='select';connectFrom=null;syncMeta();remember();render();updateInspector();setStatus('模板已载入');}
+    document.getElementById('exampleBtn').onclick=()=>useTemplate(example);
+    document.getElementById('threeStageBtn').onclick=()=>useTemplate(threeStage);
+    document.getElementById('blankBtn').onclick=()=>useTemplate(blank);
+    document.getElementById('fitBtn').onclick=()=>{document.querySelector('.canvas-shell').scrollTo({left:0,top:0,behavior:'smooth'});};
+    document.getElementById('palettePreset').onchange=evt=>{
+      if(evt.target.value==='custom')return;
+      for(const [key,value] of Object.entries(PALETTES[evt.target.value]))document.getElementById('palette'+key[0].toUpperCase()+key.slice(1)).value=value;
+      applyPalette();
+    };
+    for(const key of Object.keys(PALETTES.academic)){
+      const picker=document.getElementById('palette'+key[0].toUpperCase()+key.slice(1));
+      picker.oninput=()=>{document.getElementById('palettePreset').value='custom';};
+      picker.onchange=applyPalette;
+    }
+    document.getElementById('applyPaletteBtn').onclick=applyPalette;
+    document.getElementById('undoBtn').onclick=()=>{if(historyIndex>0){historyIndex--;restore(history[historyIndex]);try{localStorage.setItem(STORAGE,history[historyIndex]);}catch(_e){}}};
+    document.getElementById('redoBtn').onclick=()=>{if(historyIndex<history.length-1){historyIndex++;restore(history[historyIndex]);try{localStorage.setItem(STORAGE,history[historyIndex]);}catch(_e){}}};
+    document.addEventListener('keydown',evt=>{
+      const typing=evt.target.matches('input,textarea,select,[contenteditable]');
+      if((evt.metaKey||evt.ctrlKey)&&evt.key.toLowerCase()==='z'){
+        if(typing)return;evt.preventDefault();document.getElementById(evt.shiftKey?'redoBtn':'undoBtn').click();
+      }else if(!typing&&(evt.key==='Delete'||evt.key==='Backspace')){evt.preventDefault();deleteSelected();}
+      else if(evt.key==='Escape'&&mode==='connect'){mode='select';connectFrom=null;document.getElementById('connectBtn').classList.remove('active');setStatus('已退出连线模式');updateInspector();}
+    });
+    projectTitle.addEventListener('change',()=>{project.title=projectTitle.value.trim()||'Untitled flowchart';remember();});
+    captionInput.addEventListener('change',()=>{project.caption=captionInput.value.trim()||'Overview of our work';remember();});
+    function filename(ext){return (project.title||'our-work').trim().replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]+/g,'-').slice(0,60)||'our-work';}
+    function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+    function svgDocument(){return `<svg xmlns="${NS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${svgMarkup(true)}</svg>`;}
+    document.getElementById('exportSvgBtn').onclick=async()=>{try{await ensureFormulas();download(new Blob([svgDocument()],{type:'image/svg+xml;charset=utf-8'}),filename()+'.svg');setStatus('已导出 SVG');}catch(error){alert(error.message);}};
+    document.getElementById('exportPngBtn').onclick=async()=>{
+      try{await ensureFormulas();}catch(error){alert(error.message);return;}
+      const raw=svgDocument(),url=URL.createObjectURL(new Blob([raw],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
+      img.onload=()=>{const scale=3,canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);canvas.toBlob(blob=>{if(blob){download(blob,filename()+'.png');setStatus('已导出 3 倍清晰度 PNG');}else alert('PNG 导出失败，请改用 SVG。');},'image/png');};
+      img.onerror=()=>{URL.revokeObjectURL(url);alert('PNG 导出失败，请改用 SVG。');};img.src=url;
+    };
+    document.getElementById('saveJsonBtn').onclick=()=>{download(new Blob([JSON.stringify(project,null,2)],{type:'application/json'}),filename()+'.json');setStatus('工程文件已保存');};
+    document.getElementById('loadJsonBtn').onclick=()=>document.getElementById('fileInput').click();
+    document.getElementById('fileInput').onchange=async evt=>{
+      const file=evt.target.files?.[0];if(!file)return;
+      try{
+        const data=JSON.parse(await file.text());
+        if(!Array.isArray(data.nodes)||!Array.isArray(data.edges))throw Error('工程格式不正确');
+        if(data.nodes.length>200||data.edges.length>500)throw Error('工程过大');
+        project={version:1,title:String(data.title||'Untitled flowchart'),caption:String(data.caption||'Overview of our work'),theme:Object.fromEntries(Object.entries(PALETTES.academic).map(([key,value])=>[key,safeHex(data.theme?.[key],value)])),nodes:data.nodes.map(n=>({id:String(n.id||id('n')),x:clamp(+n.x||0,0,W),y:clamp(+n.y||0,0,H),w:clamp(+n.w||200,80,W),h:clamp(+n.h||90,40,H),text:String(n.text||''),fill:safeHex(n.fill,colors.white),stroke:safeHex(n.stroke,colors.line),fontSize:clamp(+n.fontSize||22,12,42),paletteRole:['stage1','stage2','stage3','neutral'].includes(n.paletteRole)?n.paletteRole:undefined,type:['rect','round','diamond','ellipse','heading','frame','formula'].includes(n.type)?n.type:'round'})),edges:data.edges.map(e=>({id:String(e.id||id('e')),from:String(e.from),to:String(e.to),label:String(e.label||''),color:safeHex(e.color,'#668b9b')}))};
+        selected=null;syncMeta();remember();render();updateInspector();project.nodes.filter(n=>n.type==='formula').forEach(n=>typesetFormula(n));setStatus('工程已打开');
+      }catch(error){alert('无法打开工程：'+error.message);}evt.target.value='';
+    };
+    document.getElementById('latexBtn').onclick=async()=>{
+      const name=filename()+'.png',caption=(project.caption||'Overview of our work').replace(/[\\{}%$&#_^~]/g,' ').trim();
+      const code=`\\begin{figure}[htbp]\n    \\centering\n    \\includegraphics[width=\\linewidth]{figures/${name}}\n    \\caption{${caption}}\n    \\label{fig:our-work}\n\\end{figure}`;
+      try{await navigator.clipboard.writeText(code);setStatus('LaTeX 插图代码已复制');}
+      catch(_e){prompt('复制这段 LaTeX 代码：',code);}
+    };
+    try{const saved=JSON.parse(localStorage.getItem(STORAGE));project=saved&&Array.isArray(saved.nodes)&&Array.isArray(saved.edges)?saved:example();}catch(_e){project=example();}
+    history=[JSON.stringify(project)];historyIndex=0;syncMeta();render();updateInspector();updateHistoryButtons();project.nodes.filter(n=>n.type==='formula').forEach(n=>typesetFormula(n));
+  </script>
+</body>
+</html>
